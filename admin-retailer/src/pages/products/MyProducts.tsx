@@ -165,7 +165,7 @@ const MyProducts = () => {
 
     try {
       const response = await fetch(
-        "https://asia-south1.workflow.boltic.app/4380f3de-86c6-4a0f-8c9f-870b42773b0f/MyProducts"
+        "https://asia-south1.workflow.boltic.app/b7b741cf-347f-4d23-b0ae-b2438f55a081/0d2d45d5-1231-49ba-9b21-0e3a9e8fba1b/MyProducts"
       );
 
       if (!response.ok) {
@@ -371,7 +371,11 @@ const MyProducts = () => {
               </form>
             </SheetContent>
           </Sheet>
-          <Button className="cursor-pointer" onClick={handlePriceOptimization} disabled={isOptimizing}>
+          <Button
+            className="cursor-pointer"
+            onClick={handlePriceOptimization}
+            disabled={isOptimizing}
+          >
             {isOptimizing ? "Optimizing..." : "Run Price Optimisation Agent"}
           </Button>
         </div>

@@ -10,6 +10,8 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface Promotion {
   user_id: number;
@@ -30,6 +32,8 @@ const Promotions = () => {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sendingAds, setSendingAds] = useState<Record<string, boolean>>({});
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchPromotions = async () => {
@@ -55,6 +59,54 @@ const Promotions = () => {
 
     fetchPromotions();
   }, []);
+
+  const getUserOccurrenceIndex = (userId: number, currentIndex: number) => {
+    return (
+      promotions.slice(0, currentIndex + 1).filter((p) => p.user_id === userId)
+        .length - 1
+    );
+  };
+
+  const handleSendAds = async (userId: number, index: number) => {
+    const key = `${userId}-${index}`;
+    setSendingAds((prev) => ({ ...prev, [key]: true }));
+
+    try {
+      const occurrenceIndex = getUserOccurrenceIndex(userId, index);
+      const response = await fetch(
+        "https://asia-south1.workflow.boltic.app/fcf34828-d184-48bd-a0d9-9ceb31defdbe/send-ads",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            index: occurrenceIndex,
+            user_id: userId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to send ads");
+      }
+
+      const data = await response.json();
+
+      toast({
+        title: "Success",
+        description: data.msg || `Ad sent successfully to user ${userId}`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to send ads",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingAds((prev) => ({ ...prev, [key]: false }));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -92,6 +144,7 @@ const Promotions = () => {
                     <TableHead>Email</TableHead>
                     <TableHead>Product Suggested</TableHead>
                     <TableHead>Reason for Suggestion</TableHead>
+                    <TableHead>Ads Promotion</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -128,6 +181,20 @@ const Promotions = () => {
                       </TableCell>
                       <TableCell className="text-gray-600">
                         {promotion.reason_for_suggestion}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          onClick={() =>
+                            handleSendAds(promotion.user_id, index)
+                          }
+                          disabled={sendingAds[`${promotion.user_id}-${index}`]}
+                          size="sm"
+                          className="cursor-pointer"
+                        >
+                          {sendingAds[`${promotion.user_id}-${index}`]
+                            ? "Sending..."
+                            : "Send Ads"}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
