@@ -11,6 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Plus } from "lucide-react";
 
 interface Product {
   id: string;
@@ -27,6 +38,7 @@ interface Product {
 }
 
 const getSuggestionColor = (suggestion: string) => {
+  if (!suggestion) return "bg-blue-50 text-blue-700 border-blue-200";
   const lower = suggestion.toLowerCase();
   if (lower.includes("increase") || lower.includes("above")) {
     return "bg-green-50 text-green-700 border-green-200";
@@ -64,7 +76,85 @@ const MyProducts = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    product_id: "",
+    name: "",
+    category: "",
+    our_price: "",
+    stock_quantity: "",
+    image_url: "",
+  });
   const { toast } = useToast();
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(
+        "https://asia-south1.workflow.boltic.app/69d14580-dd44-4ad6-bd11-35707528532a/post-myproduct",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            product_id: Number(formData.product_id),
+            name: formData.name,
+            category: formData.category,
+            our_price: Number(formData.our_price),
+            stock_quantity: Number(formData.stock_quantity),
+            image_url: formData.image_url,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to add product");
+      }
+
+      toast({
+        title: "Success",
+        description: "Product added successfully!",
+      });
+
+      // Reset form and close sheet
+      setFormData({
+        product_id: "",
+        name: "",
+        category: "",
+        our_price: "",
+        stock_quantity: "",
+        image_url: "",
+      });
+      setIsSheetOpen(false);
+
+      // Refresh products list
+      const productsResponse = await fetch(
+        "https://asia-south1.workflow.boltic.app/c17e5c0a-a857-4df5-80c2-ea9d67188b49/get-my-products"
+      );
+      if (productsResponse.ok) {
+        const productsData = await productsResponse.json();
+        setProducts(productsData.return || []);
+      }
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Failed to add product",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handlePriceOptimization = async () => {
     setIsOptimizing(true);
@@ -181,9 +271,110 @@ const MyProducts = () => {
             Manage your product inventory and pricing strategy
           </p>
         </div>
-        <Button onClick={handlePriceOptimization} disabled={isOptimizing}>
-          {isOptimizing ? "Optimizing..." : "Run Price Optimisation Agent"}
-        </Button>
+
+        <div className="flex gap-3">
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="cursor-pointer">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Product
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Add New Product</SheetTitle>
+                <SheetDescription>
+                  Fill in the product details below to add it to your inventory.
+                </SheetDescription>
+              </SheetHeader>
+              <form onSubmit={handleAddProduct} className="space-y-4 mt-6">
+                <div className="space-y-2">
+                  <Label htmlFor="product_id">Product ID</Label>
+                  <Input
+                    id="product_id"
+                    name="product_id"
+                    type="number"
+                    required
+                    value={formData.product_id}
+                    onChange={handleInputChange}
+                    placeholder="e.g., 11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Product Name</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Yoga Mat Premium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Input
+                    id="category"
+                    name="category"
+                    type="text"
+                    required
+                    value={formData.category}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Fitness"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="our_price">Price ($)</Label>
+                  <Input
+                    id="our_price"
+                    name="our_price"
+                    type="number"
+                    step="0.01"
+                    required
+                    value={formData.our_price}
+                    onChange={handleInputChange}
+                    placeholder="e.g., 49.99"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="stock_quantity">Stock Quantity</Label>
+                  <Input
+                    id="stock_quantity"
+                    name="stock_quantity"
+                    type="number"
+                    required
+                    value={formData.stock_quantity}
+                    onChange={handleInputChange}
+                    placeholder="e.g., 89"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="image_url">Image URL</Label>
+                  <Input
+                    id="image_url"
+                    name="image_url"
+                    type="url"
+                    required
+                    value={formData.image_url}
+                    onChange={handleInputChange}
+                    placeholder="https://..."
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Adding Product..." : "Add Product"}
+                </Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+          <Button className="cursor-pointer" onClick={handlePriceOptimization} disabled={isOptimizing}>
+            {isOptimizing ? "Optimizing..." : "Run Price Optimisation Agent"}
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -248,15 +439,15 @@ const MyProducts = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="font-semibold text-gray-900">
-                        ${product.our_price.toFixed(2)}
+                        ${product.our_price?.toFixed(2) ?? "0.00"}
                       </span>
                     </TableCell>
                     <TableCell className="text-right text-gray-600">
-                      ${product.competitor_prices.toFixed(2)}
+                      ${product.competitor_prices?.toFixed(2) ?? "0.00"}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="font-semibold text-blue-600">
-                        ${product.recommended_price.toFixed(2)}
+                        ${product.recommended_price?.toFixed(2) ?? "0.00"}
                       </span>
                     </TableCell>
                     <TableCell className="w-[200px]">
