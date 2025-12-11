@@ -37,7 +37,17 @@ export default function Login() {
 
       if (response.status === 200) {
         toast.success(data.msg || "Login Successful");
+
+        // Store user data in local storage
         localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("userId", data.user_data.id);
+        localStorage.setItem("userEmail", data.user_data.email);
+        localStorage.setItem("userName", data.user_data.name);
+        localStorage.setItem(
+          "recentlyViewed",
+          JSON.stringify(data.user_data.recently_viewed || [])
+        );
+
         navigate("/home");
       } else {
         toast.error(data.msg || "Login Failed");
@@ -91,7 +101,11 @@ export default function Login() {
                 disabled={loading}
               />
             </div>
-            <Button type="submit" className="w-full cursor-pointer" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full cursor-pointer"
+              disabled={loading}
+            >
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
