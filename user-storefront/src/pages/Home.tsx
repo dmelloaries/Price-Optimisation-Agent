@@ -11,6 +11,7 @@ import { ShoppingCart } from "lucide-react";
 import { MorphingText } from "@/components/ui/morphing-text";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
+import { useCart } from "../context/CartContext";
 
 interface Product {
   id: string;
@@ -22,7 +23,7 @@ interface Product {
 
 export default function Home() {
   const navigate = useNavigate();
-  const [cartCount, setCartCount] = useState(0);
+  const { addToCart, cartCount } = useCart();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,8 +52,8 @@ export default function Home() {
     navigate("/login");
   };
 
-  const handleAddToCart = () => {
-    setCartCount(cartCount + 1);
+  const handleAddToCart = (product: Product) => {
+    addToCart(product);
     toast.success("Item added to cart");
   };
 
@@ -95,7 +96,7 @@ export default function Home() {
               <Button
                 variant="outline"
                 className="relative cursor-pointer"
-                onClick={() => toast.info("Cart feature coming soon!")}
+                onClick={() => navigate("/cart")}
               >
                 <ShoppingCart className="w-5 h-5 mr-2" />
                 Cart
@@ -194,7 +195,7 @@ export default function Home() {
                       ${product.our_price.toFixed(2)}
                     </span>
                     <Button
-                      onClick={handleAddToCart}
+                      onClick={() => handleAddToCart(product)}
                       size="sm"
                       className="cursor-pointer"
                     >
