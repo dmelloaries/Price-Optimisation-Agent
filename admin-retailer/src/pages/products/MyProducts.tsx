@@ -21,7 +21,15 @@ import {
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  CheckSquare,
+  Square,
+} from "lucide-react";
 
 interface Product {
   id: string;
@@ -78,6 +86,10 @@ const MyProducts = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(
+    new Set()
+  );
+  const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -244,8 +256,6 @@ const MyProducts = () => {
     productId: string,
     productName: string
   ) => {
-    
-
     try {
       const response = await fetch(`${BASE_API_URL}/record/${productId}`, {
         method: "DELETE",
@@ -268,6 +278,87 @@ const MyProducts = () => {
         description:
           err instanceof Error ? err.message : "Failed to delete product",
       });
+    }
+  };
+
+  const toggleProductSelection = (productId: string) => {
+    setSelectedProducts((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllProducts = () => {
+    if (selectedProducts.size === products.length) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(products.map((p) => p.id)));
+    }
+  };
+
+  const handleAutoUpdatePrices = async () => {
+    if (selectedProducts.size === 0) {
+      toast({
+        variant: "destructive",
+        title: "No Products Selected",
+        description: "Please select at least one product to update prices.",
+      });
+      return;
+    }
+
+    setIsUpdatingPrices(true);
+    toast({
+      title: "Updating Prices",
+      description: `Updating prices for ${selectedProducts.size} selected product(s)...`,
+    });
+
+    try {
+      // Get the product_ids from selected products
+      const selectedProductIds = products
+        .filter((product) => selectedProducts.has(product.id))
+        .map((product) => product.product_id);
+
+      const response = await fetch(
+        "https://asia-south1.workflow.boltic.app/c1a657d7-60d2-417a-9fbd-520ec1195501/update-price",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            product_ids: selectedProductIds,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update prices");
+      }
+
+      toast({
+        title: "Success",
+        description: "Prices updated successfully for selected products!",
+      });
+
+      // Clear selection
+      setSelectedProducts(new Set());
+
+      // Refresh products list
+      await fetchAllProducts();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Failed to update prices",
+      });
+    } finally {
+      setIsUpdatingPrices(false);
     }
   };
 
@@ -473,6 +564,18 @@ const MyProducts = () => {
           >
             {isOptimizing ? "Optimizing..." : "Run Price Optimisation Agent"}
           </Button>
+          <Button
+            className="cursor-pointer"
+            onClick={handleAutoUpdatePrices}
+            disabled={isUpdatingPrices || selectedProducts.size === 0}
+            variant={selectedProducts.size > 0 ? "default" : "secondary"}
+          >
+            {isUpdatingPrices
+              ? "Updating..."
+              : `Auto Update Prices ${
+                  selectedProducts.size > 0 ? `(${selectedProducts.size})` : ""
+                }`}
+          </Button>
         </div>
       </div>
 
@@ -485,6 +588,18 @@ const MyProducts = () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
+                  <TableHead className="w-12 font-semibold">
+                    <button
+                      onClick={toggleAllProducts}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      {selectedProducts.size === products.length ? (
+                        <CheckSquare className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <Square className="h-5 w-5 text-gray-400" />
+                      )}
+                    </button>
+                  </TableHead>
                   <TableHead className="w-20 font-semibold">ID</TableHead>
                   <TableHead className="min-w-[200px] font-semibold">
                     Product
@@ -521,6 +636,18 @@ const MyProducts = () => {
                       key={product.id}
                       className={index % 2 === 0 ? "bg-white" : "bg-gray-50/50"}
                     >
+                      <TableCell>
+                        <button
+                          onClick={() => toggleProductSelection(product.id)}
+                          className="p-1 hover:bg-gray-100 rounded"
+                        >
+                          {selectedProducts.has(product.id) ? (
+                            <CheckSquare className="h-5 w-5 text-blue-600" />
+                          ) : (
+                            <Square className="h-5 w-5 text-gray-400" />
+                          )}
+                        </button>
+                      </TableCell>
                       <TableCell className="font-semibold text-gray-700">
                         {product.product_id}
                       </TableCell>
