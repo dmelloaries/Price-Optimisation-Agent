@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
 
 interface Product {
   id: string;
@@ -71,6 +71,8 @@ const getTrendBadge = (score: number) => {
   );
 };
 
+const BASE_API_URL = "https://mello-admin-store.gateway.boltic.app";
+
 const MyProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +80,12 @@ const MyProducts = () => {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    category: "",
+    our_price: "",
+  });
   const [formData, setFormData] = useState({
     product_id: "",
     name: "",
@@ -93,31 +101,60 @@ const MyProducts = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const fetchAllProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${BASE_API_URL}/records`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch products");
+      }
+
+      const data = await response.json();
+      // Extract the data array from the API response
+      setProducts(Array.isArray(data?.data) ? data.data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setProducts([]); // Set empty array on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
-        "https://asia-south1.workflow.boltic.app/69d14580-dd44-4ad6-bd11-35707528532a/post-myproduct",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            product_id: Number(formData.product_id),
-            name: formData.name,
-            category: formData.category,
-            our_price: Number(formData.our_price),
-            stock_quantity: Number(formData.stock_quantity),
-            image_url: formData.image_url,
-          }),
-        }
-      );
+      const response = await fetch(`${BASE_API_URL}/record`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          product_id: Number(formData.product_id),
+          name: formData.name,
+          category: formData.category,
+          our_price: Number(formData.our_price),
+          stock_quantity: Number(formData.stock_quantity),
+          image_url: formData.image_url,
+          recommended_price: Number(formData.our_price), // Initialize with our_price
+          trend_score: 5.0, // Default neutral trend score
+          competitor_prices: Number(formData.our_price), // Initialize with our_price
+          last_price_update: new Date().toISOString(), // Current timestamp
+          "suggestion reason":
+            "Newly added product - awaiting price optimization analysis",
+        }),
+      });
 
       if (!response.ok) {
-        throw new Error("Failed to add product");
+        const errorData = await response.json();
+        throw new Error(errorData?.error?.meta?.[0] || "Failed to add product");
       }
 
       toast({
@@ -137,13 +174,7 @@ const MyProducts = () => {
       setIsSheetOpen(false);
 
       // Refresh products list
-      const productsResponse = await fetch(
-        "https://asia-south1.workflow.boltic.app/c17e5c0a-a857-4df5-80c2-ea9d67188b49/get-my-products"
-      );
-      if (productsResponse.ok) {
-        const productsData = await productsResponse.json();
-        setProducts(productsData.return || []);
-      }
+      await fetchAllProducts();
     } catch (err) {
       toast({
         variant: "destructive",
@@ -153,6 +184,90 @@ const MyProducts = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEditClick = (product: Product) => {
+    setEditingId(product.id);
+    setEditFormData({
+      name: product.name,
+      category: product.category,
+      our_price: product.our_price.toString(),
+    });
+  };
+
+  const handleEditCancel = () => {
+    setEditingId(null);
+    setEditFormData({
+      name: "",
+      category: "",
+      our_price: "",
+    });
+  };
+
+  const handleEditSave = async (productId: string) => {
+    try {
+      const response = await fetch(`${BASE_API_URL}/record/${productId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: editFormData.name,
+          category: editFormData.category,
+          our_price: Number(editFormData.our_price),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update product");
+      }
+
+      toast({
+        title: "Success",
+        description: "Product updated successfully!",
+      });
+
+      setEditingId(null);
+      await fetchAllProducts();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Failed to update product",
+      });
+    }
+  };
+
+  const handleDeleteProduct = async (
+    productId: string,
+    productName: string
+  ) => {
+    
+
+    try {
+      const response = await fetch(`${BASE_API_URL}/record/${productId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete product");
+      }
+
+      toast({
+        title: "Success",
+        description: "Product deleted successfully!",
+      });
+
+      await fetchAllProducts();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Failed to delete product",
+      });
     }
   };
 
@@ -203,27 +318,7 @@ const MyProducts = () => {
   };
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(
-          "https://asia-south1.workflow.boltic.app/c17e5c0a-a857-4df5-80c2-ea9d67188b49/get-my-products"
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch products");
-        }
-
-        const data = await response.json();
-        setProducts(data.return || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
+    fetchAllProducts();
   }, []);
 
   if (loading) {
@@ -413,74 +508,166 @@ const MyProducts = () => {
                   <TableHead className="text-center font-semibold">
                     Trend
                   </TableHead>
+                  <TableHead className="text-center font-semibold">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((product, index) => (
-                  <TableRow
-                    key={product.id}
-                    className={index % 2 === 0 ? "bg-white" : "bg-gray-50/50"}
-                  >
-                    <TableCell className="font-semibold text-gray-700">
-                      {product.product_id}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-2 max-w-[200px]">
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="w-14 h-14 rounded-lg object-cover shadow-sm border border-gray-200"
-                        />
-                        <span className="font-medium text-gray-900 break-words">
-                          {product.name}
+                {products.map((product, index) => {
+                  const isEditing = editingId === product.id;
+                  return (
+                    <TableRow
+                      key={product.id}
+                      className={index % 2 === 0 ? "bg-white" : "bg-gray-50/50"}
+                    >
+                      <TableCell className="font-semibold text-gray-700">
+                        {product.product_id}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col items-start gap-2 max-w-[200px]">
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-14 h-14 rounded-lg object-cover shadow-sm border border-gray-200"
+                          />
+                          {isEditing ? (
+                            <Input
+                              value={editFormData.name}
+                              onChange={(e) =>
+                                setEditFormData({
+                                  ...editFormData,
+                                  name: e.target.value,
+                                })
+                              }
+                              className="h-8 text-sm"
+                            />
+                          ) : (
+                            <span className="font-medium text-gray-900 break-words">
+                              {product.name}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <Input
+                            value={editFormData.category}
+                            onChange={(e) =>
+                              setEditFormData({
+                                ...editFormData,
+                                category: e.target.value,
+                              })
+                            }
+                            className="h-8 text-sm"
+                          />
+                        ) : (
+                          <Badge variant="outline" className="font-medium">
+                            {product.category}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={editFormData.our_price}
+                            onChange={(e) =>
+                              setEditFormData({
+                                ...editFormData,
+                                our_price: e.target.value,
+                              })
+                            }
+                            className="h-8 text-sm w-24 ml-auto"
+                          />
+                        ) : (
+                          <span className="font-semibold text-gray-900">
+                            ${product.our_price?.toFixed(2) ?? "0.00"}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-gray-600">
+                        ${product.competitor_prices?.toFixed(2) ?? "0.00"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="font-semibold text-blue-600">
+                          ${product.recommended_price?.toFixed(2) ?? "0.00"}
                         </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="font-medium">
-                        {product.category}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-semibold text-gray-900">
-                        ${product.our_price?.toFixed(2) ?? "0.00"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right text-gray-600">
-                      ${product.competitor_prices?.toFixed(2) ?? "0.00"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-semibold text-blue-600">
-                        ${product.recommended_price?.toFixed(2) ?? "0.00"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="w-[200px]">
-                      <div
-                        className={`text-sm p-2 rounded-md border leading-relaxed break-words ${getSuggestionColor(
-                          product["suggestion reason"]
-                        )}`}
-                      >
-                        {product["suggestion reason"]}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span
-                        className={`font-medium ${
-                          product.stock_quantity === 0
-                            ? "text-red-600"
-                            : product.stock_quantity < 50
-                            ? "text-amber-600"
-                            : "text-green-600"
-                        }`}
-                      >
-                        {product.stock_quantity}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {getTrendBadge(product.trend_score)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell className="w-[200px]">
+                        <div
+                          className={`text-sm p-2 rounded-md border leading-relaxed break-words ${getSuggestionColor(
+                            product["suggestion reason"]
+                          )}`}
+                        >
+                          {product["suggestion reason"]}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span
+                          className={`font-medium ${
+                            product.stock_quantity === 0
+                              ? "text-red-600"
+                              : product.stock_quantity < 50
+                              ? "text-amber-600"
+                              : "text-green-600"
+                          }`}
+                        >
+                          {product.stock_quantity}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {getTrendBadge(product.trend_score)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-2">
+                          {isEditing ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEditSave(product.id)}
+                                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={handleEditCancel}
+                                className="h-8 w-8 p-0 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEditClick(product)}
+                                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  handleDeleteProduct(product.id, product.name)
+                                }
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
